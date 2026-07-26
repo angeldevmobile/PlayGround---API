@@ -16,7 +16,7 @@ Petición:
 
 ```json
 {
-  "code": "print(\"hola\")"
+  "code": "show \"hola\""
 }
 ```
 
@@ -27,7 +27,41 @@ Respuesta:
   "stdout": "hola\n",
   "stderr": "",
   "ok": true,
-  "time_ms": 12
+  "time_ms": 12,
+  "exec_ms": 3.832
+}
+```
+
+| Campo | Significado |
+| ----- | ----------- |
+| `stdout` | Lo que el programa imprimió con `show` |
+| `stderr` | Errores de compilación y de ejecución. Vacío si todo salió bien |
+| `ok` | Código de salida del proceso. **Esta es la señal de éxito o error** |
+| `time_ms` | Petición completa: escribir el archivo, lanzar el proceso y leer la salida |
+| `exec_ms` | Solo la ejecución del programa, medido por el intérprete. Ausente si no llegó a correr |
+
+Dos detalles al consumir la respuesta:
+
+- Decide éxito o error con `ok`, no con `stderr`. Son equivalentes hoy, pero `ok`
+  es el contrato.
+- `stderr` llega con secuencias de color ANSI, porque el intérprete formatea sus
+  errores para terminal. En el navegador hay que quitarlas o convertirlas a HTML.
+
+Las rutas del archivo temporal se sustituyen por `main.orx` en los mensajes de
+error, así que las referencias que ve el usuario son a su propio código.
+
+El campo `code` lleva código Orion, no Python ni JavaScript. Para imprimir se usa
+`show`, que acepta paréntesis o no, y los booleanos son `yes` y `no`:
+
+```
+-- comentario de línea
+nombre = "mundo"
+activo = yes
+
+show "hola " + nombre
+
+if activo {
+    show "listo"
 }
 ```
 
@@ -70,7 +104,7 @@ Prueba rápida:
 ```bash
 curl -X POST http://localhost:3001/run \
   -H "Content-Type: application/json" \
-  -d '{"code":"print(\"hola\")"}'
+  -d '{"code":"show \"hola\""}'
 ```
 
 ## Docker

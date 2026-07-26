@@ -30,6 +30,10 @@ struct RunResponse {
     stderr: String,
     ok: bool,
     time_ms: u64,
+    /// Tiempo que reporta el intérprete para el programa en sí. Ausente cuando
+    /// no llegó a ejecutarse, por ejemplo si expiró el límite de tiempo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exec_ms: Option<f64>,
 }
 
 async fn run_handler(
@@ -54,6 +58,7 @@ async fn run_handler(
         stderr: result.stderr,
         ok: result.ok,
         time_ms: result.time_ms,
+        exec_ms: result.exec_ms,
     }))
 }
 
