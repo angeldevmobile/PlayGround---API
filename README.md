@@ -40,8 +40,11 @@ Respuesta:
 | `time_ms` | Petición completa: escribir el archivo, lanzar el proceso y leer la salida |
 | `exec_ms` | Solo la ejecución del programa, medido por el intérprete. Ausente si no llegó a correr |
 
-Dos detalles al consumir la respuesta:
+Tres detalles al consumir la respuesta:
 
+- La respuesta es JSON, no Orion. `ok` viaja como `true`/`false` porque son los
+  booleanos que define JSON. Los `yes`/`no` de Orion viven dentro del string
+  `code`, que es lo único que llega al intérprete.
 - Decide éxito o error con `ok`, no con `stderr`. Son equivalentes hoy, pero `ok`
   es el contrato.
 - `stderr` llega con secuencias de color ANSI, porque el intérprete formatea sus
