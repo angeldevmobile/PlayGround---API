@@ -1,13 +1,17 @@
 use axum::{
     extract::{ConnectInfo, State},
-    http::StatusCode,
+    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
 };
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use serde::{Deserialize, Serialize};
+
+/// Orígenes autorizados cuando no se define ALLOWED_ORIGINS (lista separada por
+/// comas). El 8080 es el dev server de Vite; ver vite.config.ts del repo web.
+const DEFAULT_ORIGINS: &str = "https://docs-orion.onrender.com,http://localhost:8080";
 
 mod runner;
 mod limiter;
@@ -72,10 +76,31 @@ async fn main() {
         limiter: Arc::new(RateLimiter::new()),
     };
 
+    let origins: Vec<HeaderValue> = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| DEFAULT_ORIGINS.to_string())
+        .split(',')
+        .filter_map(|o| match o.trim() {
+            "" => None,
+            o => match HeaderValue::from_str(o) {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    eprintln!("ALLOWED_ORIGINS: origen inválido, ignorado: {o:?}");
+                    None
+                }
+            },
+        })
+        .collect();
+
+    if origins.is_empty() {
+        panic!("ALLOWED_ORIGINS no contiene ningún origen válido; el navegador rechazaría toda petición");
+    }
+
+    println!("CORS permitido para: {origins:?}");
+
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([CONTENT_TYPE]);
 
     let app = Router::new()
         .route("/run", post(run_handler))
