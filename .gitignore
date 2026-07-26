@@ -1,0 +1,5 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Nota: Cargo.lock SÍ se versiona en crates binarios (builds reproducibles).
