@@ -28,7 +28,7 @@ RUN cargo build --release
 #      salía verde sirviendo el binario viejo. Al subir la versión aquí, la
 #      capa cambia y se rehace sola.
 # Al publicar un release nuevo: sube el número y haz push.
-ARG ORION_VERSION=v0.1.2
+ARG ORION_VERSION=v0.1.3
 ARG ORION_RELEASE_URL=https://github.com/angeldevmobile/Orion/releases/download/${ORION_VERSION}/orion-linux-x64
 RUN curl -fsSL "${ORION_RELEASE_URL}" -o /tmp/orion && chmod +x /tmp/orion \
     && /tmp/orion --version
