@@ -79,6 +79,35 @@ Códigos de error:
 ### `GET /health`
 
 Devuelve `ok` en texto plano. Pensado para health checks del proveedor de hosting.
+Se mantiene en texto a propósito: Render lo usa como `healthCheckPath` y cambiarle
+la forma es arriesgado sin ganar nada. La información de build vive en `/version`.
+
+### `GET /version`
+
+Qué compilador sirve este contenedor.
+
+```json
+{
+  "orion": "v0.1.3",
+  "orion_raw": "Orion VM v0.1.3 (Rust) — pipeline completo: lexer + parser + codegen + VM",
+  "api": "0.1.0"
+}
+```
+
+| Campo | Significado |
+| ----- | ----------- |
+| `orion` | Tag del compilador, o `null` si no se pudo determinar |
+| `orion_raw` | Salida literal de `orion --version`; si `orion` es `null`, explica por qué |
+| `api` | Versión de este servicio, tomada de `Cargo.toml` |
+
+El Dockerfile fija el binario a un tag concreto (`ARG ORION_VERSION`), y hasta
+ahora no había forma de comprobar desde fuera qué versión estaba realmente
+desplegada: dos releases pueden comportarse igual al ejecutar código y aun así
+importar cuál corre. La única fuente era el panel de Render.
+
+La versión se resuelve **una sola vez al arrancar**, no por petición: el binario
+no cambia mientras el contenedor vive. Si falta, el servicio arranca igual y este
+endpoint devuelve `null` en vez de caerse.
 
 ## Límites
 
