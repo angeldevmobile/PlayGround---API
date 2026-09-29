@@ -43,7 +43,8 @@ RUN apt-get update && \
 
 # Runtime: distroless, sin shell ni gestor de paquetes, superficie mínima.
 # Importa porque este servicio ejecuta código arbitrario de usuarios.
-FROM gcr.io/distroless/cc-debian13
+# Variante :nonroot (UID 65532): el código de los usuarios no corre como root.
+FROM gcr.io/distroless/cc-debian13:nonroot
 
 COPY --from=libs /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/
 COPY --from=libs /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/

@@ -1,11 +1,14 @@
 use axum::{
     extract::{ConnectInfo, State},
-    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
+    http::{header::CONTENT_TYPE, HeaderMap, HeaderValue, Method, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +28,27 @@ struct AppState {
     /// vez al arrancar: lanzar un proceso por petición para averiguarla sería
     /// absurdo, y el binario no cambia mientras el contenedor vive.
     orion_version: Arc<OrionVersion>,
+    /// Si hay un proxy de confianza delante (Render, Railway, nginx). Ver
+    /// `ip_cliente`.
+    confiar_en_proxy: bool,
+}
+
+/// IP para el límite de peticiones. Con TRUST_PROXY, la última de X-Forwarded-For
+/// (la que añade el proxy de Render); sin él, la de la conexión.
+fn ip_cliente(headers: &HeaderMap, conexion: SocketAddr, confiar_en_proxy: bool) -> IpAddr {
+    if confiar_en_proxy {
+        let ultima = headers
+            .get_all("x-forwarded-for")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .flat_map(|v| v.split(','))
+            .filter_map(|ip| ip.trim().parse::<IpAddr>().ok())
+            .last();
+        if let Some(ip) = ultima {
+            return ip;
+        }
+    }
+    conexion.ip()
 }
 
 #[derive(Serialize)]
@@ -83,9 +107,11 @@ struct RunResponse {
 async fn run_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, StatusCode> {
-    if !state.limiter.check(addr.ip()).await {
+    let ip = ip_cliente(&headers, addr, state.confiar_en_proxy);
+    if !state.limiter.check(ip).await {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
@@ -127,9 +153,20 @@ async fn main() {
     let orion_version = resolve_orion_version();
     println!("compilador: {}", orion_version.raw);
 
+    let confiar_en_proxy = matches!(
+        std::env::var("TRUST_PROXY").unwrap_or_default().trim().to_lowercase().as_str(),
+        "1" | "true" | "yes"
+    );
+    println!("límite por IP: {}", if confiar_en_proxy {
+        "X-Forwarded-For (TRUST_PROXY activo)"
+    } else {
+        "IP de la conexión"
+    });
+
     let state = AppState {
         limiter: Arc::new(RateLimiter::new()),
         orion_version: Arc::new(orion_version),
+        confiar_en_proxy,
     };
 
     let origins: Vec<HeaderValue> = std::env::var("ALLOWED_ORIGINS")
@@ -173,4 +210,38 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cabeceras(xff: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("x-forwarded-for", HeaderValue::from_str(xff).unwrap());
+        h
+    }
+
+    const PROXY: &str = "10.0.0.9:443";
+
+    #[test]
+    fn detras_del_proxy_cuenta_la_ultima_ip() {
+        // El cliente mandó "1.1.1.1" por su cuenta; el proxy añadió la real.
+        let ip = ip_cliente(&cabeceras("1.1.1.1, 203.0.113.7"), PROXY.parse().unwrap(), true);
+        assert_eq!(ip, "203.0.113.7".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn sin_trust_proxy_se_ignora_la_cabecera() {
+        let ip = ip_cliente(&cabeceras("203.0.113.7"), PROXY.parse().unwrap(), false);
+        assert_eq!(ip, "10.0.0.9".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn cabecera_ausente_o_rota_usa_la_conexion() {
+        let ip = ip_cliente(&HeaderMap::new(), PROXY.parse().unwrap(), true);
+        assert_eq!(ip, "10.0.0.9".parse::<IpAddr>().unwrap());
+        let ip = ip_cliente(&cabeceras("no-es-una-ip"), PROXY.parse().unwrap(), true);
+        assert_eq!(ip, "10.0.0.9".parse::<IpAddr>().unwrap());
+    }
 }
