@@ -90,8 +90,8 @@ Qué compilador sirve este contenedor.
 
 ```json
 {
-  "orion": "v0.1.3",
-  "orion_raw": "Orion VM v0.1.3 (Rust) — pipeline completo: lexer + parser + codegen + VM",
+  "orion": "v0.1.6",
+  "orion_raw": "Orion VM v0.1.6 (Rust) — pipeline completo: lexer + parser + codegen + VM",
   "api": "0.1.0"
 }
 ```
