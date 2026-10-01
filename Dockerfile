@@ -33,12 +33,11 @@ ARG ORION_RELEASE_URL=https://github.com/angeldevmobile/Orion/releases/download/
 RUN curl -fsSL "${ORION_RELEASE_URL}" -o /tmp/orion && chmod +x /tmp/orion \
     && /tmp/orion --version
 
-# Librerías dinámicas que pide orion y que distroless/cc no incluye:
-# libssl.so.3, libcrypto.so.3 y libz.so.1. Las demás (libgcc_s, libm, libc)
-# ya vienen en la imagen cc.
+# Librerías dinámicas que pide orion y que distroless/cc no trae (comprobadas
+# con `ldd orion`): ssl, crypto, z, lzma y zstd. libgcc_s, libm y libc ya vienen.
 FROM debian:trixie-slim AS libs
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libssl3 zlib1g && \
+    apt-get install -y --no-install-recommends libssl3 zlib1g liblzma5 libzstd1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Runtime: distroless, sin shell ni gestor de paquetes, superficie mínima.
@@ -49,6 +48,8 @@ FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=libs /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/
 COPY --from=libs /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/
 COPY --from=libs /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/
+COPY --from=libs /usr/lib/x86_64-linux-gnu/liblzma.so.5 /usr/lib/x86_64-linux-gnu/
+COPY --from=libs /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/lib/x86_64-linux-gnu/
 
 COPY --from=builder /build/target/release/playground-api /usr/local/bin/playground-api
 COPY --from=builder /tmp/orion /usr/local/bin/orion
